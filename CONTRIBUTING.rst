@@ -5,7 +5,7 @@ Contributing Guidelines
 Questions, Feature Requests, Bug Reports, and Feedback…
 -------------------------------------------------------
 
-…should all be reported on the `Bitbucket Issue Tracker`_ .
+…should all be reported on the `Github Issue Tracker`_ .
 
 .. _`Bitbucket Issue Tracker`: https://github.com/Piusdan/flask-ussd-flow/issues
 
