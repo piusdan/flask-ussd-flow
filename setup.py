@@ -7,6 +7,7 @@ you build fast USSD applications by defining USSD screens
 in JSON
 """
 import re
+
 from setuptools import setup
 
 
@@ -52,10 +53,10 @@ setup(
     install_requires=["Flask>=0.10", "requests>=2.21.0"],
     extras_require={
         "dev": [
-            "pytest==3.7.2",
-            "coverage==4.5.0",
-            "flake8==3.5.0",
-            "pre-commit==1.10.5",
+            "pytest>=3.7.2",
+            "coverage>=4.5.0",
+            "flake8>=3.5.0",
+            "pre-commit>=1.10.5",
         ]
     },
     classifiers=[

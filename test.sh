@@ -1,4 +1,5 @@
-# !/bin/bash
+#!/usr/bin/env bash
+
 export WHEELHOUSE=wheelhouse
 export PIP_WHEEL_DIR=wheelhouse
 export PIP_FIND_LINKS=wheelhouse
