@@ -2,8 +2,6 @@ from functools import wraps
 
 from flask import g, request, current_app
 
-from . import ussd_logger
-
 from . import _render_screen
 
 
@@ -30,8 +28,6 @@ def ussd_view(f):
         if previous_screen is not None:
             current_app.ussd_flow.execute_callback(sessionId=g.sessionId, phoneNumber=g.phoneNumber,
                                                    user_input=user_input, screen=previous_screen)
-        else:
-            ussd_logger.debug('Skipping callback')
 
         response = _render_screen(current_screen)
 

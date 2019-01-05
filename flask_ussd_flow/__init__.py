@@ -172,22 +172,22 @@ class USSDFlow():
             ' an application context.'
         )
 
-    def get_screens_definations(self, flow_name='main'):
+    def get_screens_definitions(self, flow_name='main'):
         """Given a ussd flow name this function builds a dictionary list of all screens under the flow
         """
         with open(self.screens_file) as f:
             parsed_screen_defs = json.load(f)
             current_flow = parsed_screen_defs["flows"][flow_name]
-            screen_definations = current_flow['screens']
-            return screen_definations
+            screen_definitions = current_flow['screens']
+            return screen_definitions
 
-    def get_state(self, screens_definations, user_inputs, delimeter='*', initial_screen='initial_screen'):
+    def get_state(self, screens_definitions, user_inputs, delimeter='*', initial_screen='initial_screen'):
         """Based on user inputs this function determines the current state of the USSD session
 
         This is a transition function of a finite State Machine that operates the USSD application
-        :param screens_definations: contains a list of screen definition where each screen definition represents a screen which is a state of the FSM
+        :param screens_definitions: contains a list of screen definition where each screen definition represents a screen which is a state of the FSM
         :param user_inputs the input set,
-        * Every state(screen_defination) in the ``screens_definations`` as regex or list of accepted alphabets
+        * Every state(screen_defination) in the ``screens_definitions`` as regex or list of accepted alphabets
         :param initial_screen: The initial state is a screen named
         * The final state is a screen named ``info_screen``
 
@@ -197,7 +197,7 @@ class USSDFlow():
         input_stack.reverse()
 
         # set the FSM to start state
-        current_state = _filter_screen_by_name(screens_definations, initial_screen, '')
+        current_state = _filter_screen_by_name(screens_definitions, initial_screen, '')
         previous_state = None
 
         if user_inputs == '':
@@ -212,7 +212,7 @@ class USSDFlow():
 
                 if len(screen_name.split('.')) > 1:
                     flow_name, screen_name = screen_name.split('.')
-                    screens_definations = self.get_screens_definations(flow_name)
+                    screens_definitions = self.get_screens_definitions(flow_name)
 
                 if current_state.get("mappings") is None:
                     screen_name = screen_name.format(user_response=_input)
@@ -222,7 +222,7 @@ class USSDFlow():
                 if screen_name == '':
                     raise USSDFlowException('Invalid schema')
 
-                previous_state, current_state = current_state, _filter_screen_by_name(screens_definations, screen_name,
+                previous_state, current_state = current_state, _filter_screen_by_name(screens_definitions, screen_name,
                                                                                       _input)
 
                 while current_state.get('go_to', None) is not None:
@@ -231,8 +231,8 @@ class USSDFlow():
                     if len(screen_name.split('.')) > 1:
                         current_app.logger.debug("changing flow with {}".format(screen_name))
                         flow_name, screen_name = screen_name.split('.')
-                        screens_definations = self.get_screens_definations(flow_name)
-                    current_state = _filter_screen_by_name(screens_definations, screen_name, _input)
+                        screens_definitions = self.get_screens_definitions(flow_name)
+                    current_state = _filter_screen_by_name(screens_definitions, screen_name, _input)
 
                 continue
 
@@ -246,7 +246,7 @@ class USSDFlow():
                     # if screen defiantion does not allows apps to retry sending the screen
                     # fallback to the initial screen and continue iteration
                     screen_name = 'initial_screen'
-                    screen = _filter_screen_by_name(screens_definations, screen_name, '')
+                    current_state = _filter_screen_by_name(screens_definitions, screen_name, '')
                     continue
 
         return previous_state, current_state
