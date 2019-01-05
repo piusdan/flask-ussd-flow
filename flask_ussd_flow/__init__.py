@@ -244,14 +244,24 @@ class USSDFlow():
                     continue
                 else:
                     # if screen defiantion does not allows apps to retry sending the screen
-                    # fallback to the intial screen and continue iteration
+                    # fallback to the initial screen and continue iteration
                     screen_name = 'initial_screen'
                     screen = _filter_screen_by_name(screens_definations, screen_name, '')
                     continue
 
         return previous_state, current_state
 
-    def execute_callback(self, sessionId: str, phoneNumber: str, user_input: str, screen: dict):
+    def execute_callback(self, sessionId: str, phone_number: str, user_input: str, screen: dict):
+        """Execute the required logic after the USSD screens
+        Supports both http based or function based callback
+        Given a user input the function generates a payload
+            dict(sessionId=sessionId, user_response=user_input, phone_number=phone_number)
+        If the callback is a function the payload is passed to the function as a keyword argument
+        If the callback if http the payload is dumped to json a post to the given endpoint
+
+        The function also supports asynchronous and synchronous execution type that can be set using the ``mode``
+        key in the screens definitions file
+        """
 
         app = self.get_app()
 
@@ -265,12 +275,12 @@ class USSDFlow():
         if screen.get("mappings", None) is not None:
             user_input = screen["mappings"][user_input]
 
-        kwargs = dict(sessionId=sessionId, user_input=user_input, phoneNumber=phoneNumber, callback=callback)
+        kwargs = dict(sessionId=sessionId, user_input=user_input, phone_number=phone_number, callback=callback)
         is_callback_mode_async = (callback.get('mode') == USSDFlowConfig.screen_callback_execution['asynchronous'])
 
         @copy_current_request_context
-        def _execute_callback(callback, sessionId, phoneNumber, user_input):
-            kwargs = dict(sessionId=sessionId, user_response=user_input, phoneNumber=phoneNumber)
+        def _execute_callback(callback, sessionId, phone_number, user_input):
+            kwargs = dict(sessionId=sessionId, user_response=user_input, phone_number=phone_number)
 
             is_callback_function = (callback.get("type") == USSDFlowConfig.screen_callback_types['function'])
             is_callback_http = (callback.get("type") == USSDFlowConfig.screen_callback_types['http'])
