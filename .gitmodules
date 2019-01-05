@@ -1,0 +1,3 @@
+[submodule "docs/flask-sphinx-themes"]
+	path = docs/flask-sphinx-themes
+	url = git@github.com:pallets/flask-sphinx-themes.git
