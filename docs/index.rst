@@ -1,249 +1,234 @@
-Flask-OAuth
-===========
+.. Flask-Migrate documentation master file, created by
+   sphinx-quickstart on Fri Jul 26 14:48:13 2013.
+   You can adapt this file completely to your liking, but it should at least
+   contain the root `toctree` directive.
 
-.. module:: flask_oauth
+Welcome to Flask-Migrate's documentation!
+==========================================
 
-Flask-OAuth is an extension to `Flask`_ that allows you to interact with
-remote `OAuth`_ enabled applications.  Currently it only implements the
-consumer interface so you cannot expose your own API with OAuth.
-
-Flak-OAuth depends on the `python-oauth2`_ module.
-
-Features
---------
-
-- Support for OAuth 1.0a
-- Friendly API
-- Direct integration with Flask
-- Basic support for remote method invocation of RESTful APIs
+**Flask-Migrate** is an extension that handles SQLAlchemy database migrations for Flask applications using Alembic. The database operations are made available through the Flask command-line interface or through the Flask-Script extension.
 
 Installation
 ------------
 
-Install the extension with one of the following commands::
+Install Flask-Migrate with `pip`::
 
-    $ pip install Flask-OAuth
+    pip install Flask-Migrate
 
-Alternatively, use `easy_install`::
+Example
+-------
 
-    $ easy_install Flask-OAuth
+This is an example application that handles database migrations through Flask-Migrate::
 
-.. _Flask: http://flask.pocoo.org/
-.. _OAuth: http://oauth.net/
-.. _python-oauth2: http://pypi.python.org/pypi/oauth2/
+    from flask import Flask
+    from flask_sqlalchemy import SQLAlchemy
+    from flask_migrate import Migrate
 
-Defining Remote Applications
-----------------------------
+    app = Flask(__name__)
+    app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///app.db'
 
-To connect to a remote application create a :class:`OAuth`
-object and register a remote application on it using
-the :meth:`~OAuth.remote_app` method::
+    db = SQLAlchemy(app)
+    migrate = Migrate(app, db)
 
-    from flask_oauth import OAuth
+    class User(db.Model):
+        id = db.Column(db.Integer, primary_key=True)
+        name = db.Column(db.String(128))
 
-    oauth = OAuth()
-    the_remote_app = oauth.remote_app('the remote app',
-        ...
-    )
+With the above application you can create a migration repository with the following command::
 
-A remote application must define several URLs required by the
-OAuth machinery:
+    $ flask db init
 
-- `request_token_url`
-- `access_token_url`
-- `authorize_url`
+This will add a `migrations` folder to your application. The contents of this folder need to be added to version control along with your other source files.
 
-Additionally the application should define an issued `consumer_key`
-and `consumer_secret`.
+You can then generate an initial migration::
 
-You can find these values by registering your application with the remote
-application you want to connect with.
+    $ flask db migrate
 
-Additionally you can provide a `base_url` that is prefixed to *all*
-relative URLs used in the remote app.
+The migration script needs to be reviewed and edited, as Alembic currently does not detect every change you make to your models. In particular, Alembic is currently unable to detect table name changes, column name changes, or anonymously named constraints. A detailed summary of limitations can be found in the `Alembic autogenerate documentation <http://alembic.zzzcomputing.com/en/latest/autogenerate.html#what-does-autogenerate-detect-and-what-does-it-not-detect>`_. Once finalized, the migration script also needs to be added to version control.
 
-For Twitter the setup would look like this::
+Then you can apply the migration to the database::
 
-    twitter = oauth.remote_app('twitter',
-        base_url='https://api.twitter.com/1/',
-        request_token_url='https://api.twitter.com/oauth/request_token',
-        access_token_url='https://api.twitter.com/oauth/access_token',
-        authorize_url='https://api.twitter.com/oauth/authenticate',
-        consumer_key='<your key here>',
-        consumer_secret='<your secret here>'
-    )
+    $ flask db upgrade
 
-Now that the application is created one can start using the OAuth system.
-One thing is missing: the tokengetter. OAuth uses a token and a secret to
-figure out who is connecting to the remote application.  After
-authentication/authorization this information is passed to a function on
-your side and it is your responsibility to remember it.
+Then each time the database models change repeat the ``migrate`` and ``upgrade`` commands.
 
-The following rules apply:
+To sync the database in another system just refresh the `migrations` folder from source control and run the ``upgrade`` command.
 
--   It's your responsibility to store that information somewhere
--   That information lives for as long as the user did not revoke the
-    access for your application on the remote application.  If it was
-    revoked and the user re-enabled the application you will get different
-    keys, so if you store them in the database don't forget to check if
-    they changed in the authorization callback.
--   During the authorization handshake a temporary token and secret are
-    issued. Your tokengetter is not used during that period.
+To see all the commands that are available run this command::
 
-For a simple test application, storing that information in the session is
-probably sufficient::
+    $ flask db --help
 
-    from flask import session
+Note that the application script must be set in the ``FLASK_APP`` environment variable for all the above commands to work, as required by the ``flask`` command line script.
 
-    @twitter.tokengetter
-    def get_twitter_token(token=None):
-        return session.get('twitter_token')
+Using Flask-Script
+------------------
 
-If the token does not exist, the function must return `None`, and
-otherwise return a tuple in the form ``(token, secret)``.  The function
-might also be passed a `token` parameter.  This is user defined and can be
-used to indicate another token.  Imagine for instance you want to support
-user and application tokens or different tokens for the same user.
+Flask-Migrate also supports the Flask-Script command-line interface. This is an example application that exposes all the database migration commands through Flask-Script::
 
-The name of the token can be passed to to the
-:meth:`~OAuthRemoteApp.request` function.
+    from flask import Flask
+    from flask_sqlalchemy import SQLAlchemy
+    from flask_script import Manager
+    from flask_migrate import Migrate, MigrateCommand
 
-Signing in / Authorizing
-------------------------
+    app = Flask(__name__)
+    app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///app.db'
 
-To sign in with Twitter or link a user account with a remote
-Twitter user, simply call into
-:meth:`~OAuthRemoteApp.authorize` and pass it the URL that the user should be
-redirected back to. For example::
+    db = SQLAlchemy(app)
+    migrate = Migrate(app, db)
 
-    @app.route('/login')
-    def login():
-        return twitter.authorize(callback=url_for('oauth_authorized',
-            next=request.args.get('next') or request.referrer or None))
+    manager = Manager(app)
+    manager.add_command('db', MigrateCommand)
 
-If the application redirects back, the remote application will have passed all
-relevant information to the `oauth_authorized` function: a special
-response object with all the data, or ``None`` if the user denied the
-request.  This function must be decorated as
-:meth:`~OAuthRemoteApp.authorized_handler`::
+    class User(db.Model):
+        id = db.Column(db.Integer, primary_key=True)
+        name = db.Column(db.String(128))
 
-    from flask import redirect
+    if __name__ == '__main__':
+        manager.run()
 
-    @app.route('/oauth-authorized')
-    @twitter.authorized_handler
-    def oauth_authorized(resp):
-        next_url = request.args.get('next') or url_for('index')
-        if resp is None:
-            flash(u'You denied the request to sign in.')
-            return redirect(next_url)
+Assuming the above script is stored in a file named ``manage.py``, all the database migration commands can be accessed by running the script::
 
-        session['twitter_token'] = (
-            resp['oauth_token'],
-            resp['oauth_token_secret']
-        )
-        session['twitter_user'] = resp['screen_name']
+    $ python manage.py db init
+    $ python manage.py db migrate
+    $ python manage.py db upgrade
+    $ python manage.py db --help
 
-        flash('You were signed in as %s' % resp['screen_name'])
-        return redirect(next_url)
-
-We store the token and the associated secret in the session so that the
-tokengetter can return it.  Additionally we also store the Twitter username
-that was sent back to us so that we can later display it to the user.  In
-larger applications it is recommended to store satellite information in a
-database instead to ease debugging and more easily handle additional information
-associated with the user.
-
-Facebook OAuth
---------------
-
-For Facebook the flow is very similar to Twitter or other OAuth systems
-but there is a small difference.  You're not using the `request_token_url`
-at all and you need to provide a scope in the `request_token_params`::
-
-    facebook = oauth.remote_app('facebook',
-        base_url='https://graph.facebook.com/',
-        request_token_url=None,
-        access_token_url='/oauth/access_token',
-        authorize_url='https://www.facebook.com/dialog/oauth',
-        consumer_key=FACEBOOK_APP_ID,
-        consumer_secret=FACEBOOK_APP_SECRET,
-        request_token_params={'scope': 'email'}
-    )
-
-Furthermore the `callback` is mandatory for the call to
-:meth:`~OAuthRemoteApp.authorize` and has to match the base URL that was
-specified in the Facebook application control panel.  For development you
-can set it to ``localhost:5000``.
-
-The `APP_ID` and `APP_SECRET` can be retrieved from the Facebook app
-control panel.  If you don't have an application registered yet you can do
-this at `facebook.com/developers <https://www.facebook.com/developers/createapp.php>`_.
-
-Invoking Remote Methods
+Configuration Callbacks
 -----------------------
 
-Now the user is signed in, but you probably want to use
-OAuth to call protected remote API methods and not just sign in.  For
-that, the remote application object provides a
-:meth:`~OAuthRemoteApp.request` method that can request information from
-an OAuth protected resource.  Additionally there are shortcuts like
-:meth:`~OAuthRemoteApp.get` or :meth:`~OAuthRemoteApp.post` to request
-data with a certain HTTP method.
+Sometimes applications need to dynamically insert their own settings into the Alembic configuration. A function decorated with the ``configure`` callback will be invoked after the configuration is read, and before it is used. The function can modify the configuration object, or replace it with a different one.
 
-For example to create a new tweet you would call into the Twitter
-application as follows::
+::
 
-    resp = twitter.post('statuses/update.json', data={
-        'status':   'The text we want to tweet'
-    })
-    if resp.status == 403:
-        flash('Your tweet was too long.')
-    else:
-        flash('Successfully tweeted your tweet (ID: #%s)' % resp.data['id'])
+    @migrate.configure
+    def configure_alembic(config):
+        # modify config object
+        return config
 
-Or to display the users' feed we can do something like this::
+Multiple configuration callbacks can be defined simply by decorating multiple functions. The order in which multiple callbacks are invoked is undetermined.
 
-    resp = twitter.get('statuses/home_timeline.json')
-    if resp.status == 200:
-        tweets = resp.data
-    else:
-        tweets = None
-        flash('Unable to load tweets from Twitter. Maybe out of '
-              'API calls or Twitter is overloaded.')
+Multiple Database Support
+-------------------------
 
-Flask-OAuth will do its best to send data encoded in the right format to
-the server and to decode it when it comes back.  Incoming data is encoded
-based on the `mimetype` the server sent and is stored in the
-:attr:`~OAuthResponse.data` attribute.  For outgoing data a default of
-``'urlencode'`` is assumed. When a different format is needed, one can
-specify it with the `format` parameter.  The following formats are
-supported:
+Flask-Migrate can integrate with the  `binds <http://flask-sqlalchemy.pocoo.org/binds/>`_ feature of Flask-SQLAlchemy, making it possible to track migrations to multiple databases associated with an application.
 
-**Outgoing**:
-    - ``'urlencode'`` - form encoded data (`GET` as URL and `POST`/`PUT` as
-      request body)
-    - ``'json'`` - JSON encoded data (`POST`/`PUT` as request body)
+To create a multiple database migration repository, add the ``--multidb`` argument to the ``init`` command::
 
-**Incoming**
-    - ``'urlencode'`` - stored as flat unicode dictionary
-    - ``'json'`` - decoded with JSON rules, most likely a dictionary
-    - ``'xml'`` - stored as elementtree element
+    $ flask db init --multidb
 
-Unknown incoming data is stored as a string.  If outgoing data of a different
-format is needed, `content_type` should be specified instead and the
-data provided should be an encoded string.
+With this command, the migration repository will be set up to track migrations on your main database, and on any additional databases defined in the ``SQLALCHEMY_BINDS`` configuration option.
+
+Command Reference
+-----------------
+
+Flask-Migrate exposes two classes, ``Migrate`` and ``MigrateCommand``. The ``Migrate`` class contains all the functionality of the extension. The ``MigrateCommand`` class is only used when it is desired to expose database migration commands through the Flask-Script extension.
+
+The following example initializes the extension with the standard Flask command-line interface::
+
+    from flask_migrate import Migrate
+    migrate = Migrate(app, db)
+
+The two arguments to ``Migrate`` are the application instance and the Flask-SQLAlchemy database instance. The ``Migrate`` constructor also takes additional keyword arguments, which are passed to Alembic's ``EnvironmentContext.configure()`` method. As is standard for all Flask extensions, Flask-Migrate can be initialized using the ``init_app`` method as well.
+
+When using Flask-Script's command-line interface, the extension is initialized as follows::
+
+    from flask_migrate import Migrate, MigrateCommand
+    migrate = Migrate(app, db)
+    manager.add_command('db', MigrateCommand)
+
+After the extension is initialized, a ``db`` group will be added to the command-line options with several sub-commands, both in the ``flask`` command or with a ``manage.py`` type script created with Flask-Script. Below is a list of the available sub-commands:
+
+- ``flask db --help``
+    Shows a list of available commands.
+
+- ``flask db init [--multidb]``
+    Initializes migration support for the application. The optional ``--multidb`` enables migrations for multiple databases configured as `Flask-SQLAlchemy binds <http://flask-sqlalchemy.pocoo.org/binds/>`_.
+
+- ``flask db revision [--message MESSAGE] [--autogenerate] [--sql] [--head HEAD] [--splice] [--branch-label BRANCH_LABEL] [--version-path VERSION_PATH] [--rev-id REV_ID]``
+    Creates an empty revision script. The script needs to be edited manually with the upgrade and downgrade changes. See `Alembic's documentation <http://alembic.zzzcomputing.com/en/latest/index.html>`_ for instructions on how to write migration scripts. An optional migration message can be included.
+
+- ``flask db migrate [--message MESSAGE] [--sql] [--head HEAD] [--splice] [--branch-label BRANCH_LABEL] [--version-path VERSION_PATH] [--rev-id REV_ID]``
+    Equivalent to ``revision --autogenerate``. The migration script is populated with changes detected automatically. The generated script should to be reviewed and edited as not all types of changes can be detected automatically. This command does not make any changes to the database, just creates the revision script.
+
+- ``flask db edit <revision>``
+    Edit a revision script using $EDITOR.
+
+- ``flask db upgrade [--sql] [--tag TAG] [--x-arg ARG] <revision>``
+    Upgrades the database. If ``revision`` isn't given then ``"head"`` is assumed.
+
+- ``flask db downgrade [--sql] [--tag TAG] [--x-arg ARG] <revision>``
+    Downgrades the database. If ``revision`` isn't given then ``-1`` is assumed.
+
+- ``flask db stamp [--sql] [--tag TAG] <revision>``
+    Sets the revision in the database to the one given as an argument, without performing any migrations.
+
+- ``flask db current [--verbose]``
+    Shows the current revision of the database.
+
+- ``flask db history [--rev-range REV_RANGE] [--verbose]``
+    Shows the list of migrations. If a range isn't given then the entire history is shown.
+
+- ``flask db show <revision>``
+    Show the revision denoted by the given symbol.
+
+- ``flask db merge [--message MESSAGE] [--branch-label BRANCH_LABEL] [--rev-id REV_ID] <revisions>``
+    Merge two revisions together. Creates a new revision file.
+
+- ``flask db heads [--verbose] [--resolve-dependencies]``
+    Show current available heads in the revision script directory.
+
+- ``flask db branches [--verbose]``
+    Show current branch points.
+
+Notes:
+
+- All commands also take a ``--directory DIRECTORY`` option that points to the directory containing the migration scripts. If this argument is omitted the directory used is ``migrations``.
+- The default directory can also be specified as a ``directory`` argument to the ``Migrate`` constructor.
+- The ``--sql`` option present in several commands performs an 'offline' mode migration. Instead of executing the database commands the SQL statements that need to be executed are printed to the console.
+- Detailed documentation on these commands can be found in the `Alembic's command reference page <http://alembic.zzzcomputing.com/en/latest/api/commands.html>`_.
 
 API Reference
 -------------
 
-.. autoclass:: OAuth
-   :members:
+The commands exposed by Flask-Migrate's command-line interface can also be accessed programmatically by importing the functions from module ``flask_migrate``. The available functions are:
 
-.. autoclass:: OAuthRemoteApp
-   :members:
+- ``init(directory='migrations', multidb=False)``
+    Initializes migration support for the application.
 
-.. autoclass:: OAuthResponse
-   :members:
+- ``revision(directory='migrations', message=None, autogenerate=False, sql=False, head='head', splice=False, branch_label=None, version_path=None, rev_id=None)``
+    Creates an empty revision script.
 
-.. autoexception:: OAuthException
-   :members:
+- ``migrate(directory='migrations', message=None, sql=False, head='head', splice=False, branch_label=None, version_path=None, rev_id=None)``
+    Creates an automatic revision script.
+
+- ``edit(directory='migrations', revision='head')``
+    Edit revision script(s) using $EDITOR.
+
+- ``merge(directory='migrations', revisions='', message=None, branch_label=None, rev_id=None)``
+    Merge two revisions together.  Creates a new migration file.
+
+- ``upgrade(directory='migrations', revision='head', sql=False, tag=None)``
+    Upgrades the database.
+
+- ``downgrade(directory='migrations', revision='-1', sql=False, tag=None)``
+    Downgrades the database.
+
+- ``show(directory='migrations', revision='head')``
+    Show the revision denoted by the given symbol.
+
+- ``history(directory='migrations', rev_range=None, verbose=False)``
+    Shows the list of migrations. If a range isn't given then the entire history is shown.
+
+- ``heads(directory='migrations', verbose=False, resolve_dependencies=False)``
+    Show current available heads in the script directory.
+
+- ``branches(directory='migrations', verbose=False)``
+    Show current branch points
+
+- ``current(directory='migrations', verbose=False, head_only=False)``
+    Shows the current revision of the database.
+
+- ``stamp(directory='migrations', revision='head', sql=False, tag=None)``
+    Sets the revision in the database to the one given as an argument, without performing any migrations.
+
+Note: For greater scripting flexibility you can also use the API exposed by Alembic directly.
