@@ -3,7 +3,16 @@ import json
 import logging
 import os
 import re
+import sys
+from functools import wraps
 from threading import Thread
+
+from jinja2 import FileSystemLoader, Environment
+
+try:
+    from flask_script import Manager
+except ImportError:
+    Manager = None
 
 import requests
 from flask import current_app, copy_current_request_context
@@ -306,3 +315,46 @@ class USSDFlow():
                 return thr
             else:
                 return _execute_callback(**kwargs)
+
+
+def catch_errors(f):
+    @wraps(f)
+    def wrapped(*args, **kwargs):
+        try:
+            f(*args, **kwargs)
+        except (RuntimeError) as exc:
+            ussd_logger.error('Error: ' + str(exc))
+            sys.exit(1)
+
+    return wrapped
+
+
+if Manager is not None:
+    USSDCommand = Manager(usage='Perform USSDFlow operations')
+else:
+    class FakeCommand(object):
+        def option(self, *args, **kwargs):
+            def decorator(f):
+                return f
+
+            return decorator
+
+
+    USSDCommand = FakeCommand()
+
+
+@catch_errors
+def generate_screens(directory):
+    """Generates ussd screens
+    :return:
+    """
+    ussd_template_folder = directory or current_app.config.get('USSD_TEMPLATES_FOLDER', '')
+    kwargs = {}
+    try:
+        env = Environment(loader=FileSystemLoader(ussd_template_folder))
+        ussd_screens_file_path = os.path.join(ussd_template_folder, 'screens.json')
+        template = env.get_template('screens.j2')
+        template.stream(**kwargs).dump(ussd_screens_file_path)
+
+    except Exception as exc:
+        raise RuntimeError(str(exc))

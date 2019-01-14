@@ -13,3 +13,4 @@ htmlcov
 .coverage.*
 venv/
 requirements.txt
+**/docs

@@ -34,3 +34,4 @@ def ussd_view(f):
         return response
 
     return decorated_function
+
